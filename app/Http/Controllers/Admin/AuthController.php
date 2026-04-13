@@ -1,0 +1,75 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Controllers\Controller;
+use App\Models\Admin;
+use App\Models\AuditLog;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+
+class AuthController extends Controller
+{
+    public function showLogin()
+    {
+        if (session()->has('admin_id')) {
+            return redirect()->route('admin.dashboard');
+        }
+        return view('admin.auth.login');
+    }
+
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required|string|min:6',
+        ]);
+
+        $admin = Admin::where('email', $request->email)->first();
+
+        if (!$admin || !Hash::check($request->password, $admin->password)) {
+            return back()->with('error', 'Invalid email or password.')->withInput($request->only('email'));
+        }
+
+        if (isset($admin->is_active) && !$admin->is_active) {
+            return back()->with('error', 'Your account has been deactivated. Contact the administrator.');
+        }
+
+        // Load RBAC permissions from new role system
+        $permissions = [];
+        if ($admin->role_id && $admin->roleModel) {
+            $permissions = $admin->loadPermissions();
+            // Super admin gets wildcard
+            if ($admin->roleModel->slug === 'super_admin') {
+                $permissions[] = 'super_admin';
+            }
+        } elseif ($admin->role === 'superadmin') {
+            // Legacy fallback
+            $permissions = ['super_admin'];
+        }
+
+        session([
+            'admin_id'          => $admin->id,
+            'admin_name'        => $admin->name,
+            'admin_email'       => $admin->email,
+            'admin_role'        => $admin->role_id ? ($admin->roleModel->slug ?? $admin->role) : $admin->role,
+            'admin_role_label'  => $admin->role_id ? ($admin->roleModel->display_name ?? $admin->role) : $admin->role,
+            'admin_department'  => $admin->department_id,
+            'admin_permissions' => $permissions,
+        ]);
+
+        // Update last login (silently skip if column not yet migrated)
+        try { $admin->update(['last_login_at' => now()]); } catch (\Exception $e) {}
+        try { AuditLog::record('login'); } catch (\Exception $e) {}
+
+        return redirect()->route('admin.dashboard')
+            ->with('success', 'Welcome back, ' . $admin->name . '!');
+    }
+
+    public function logout(Request $request)
+    {
+        try { AuditLog::record('logout'); } catch (\Exception $e) {}
+        session()->flush();
+        return redirect()->route('admin.login')->with('success', 'You have been logged out.');
+    }
+}
