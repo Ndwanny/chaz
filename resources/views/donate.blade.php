@@ -62,21 +62,42 @@
                 <form action="{{ route('donate.initiate') }}" method="POST" id="donateForm" novalidate>
                     @csrf
 
-                    {{-- Payment methods banner — shown at the top so donors see options immediately --}}
-                    <div class="donate-payment-methods">
-                        <div class="donate-payment-methods__label"><i class="fa fa-lock"></i> Secure payment — choose how you'd like to pay</div>
-                        <div class="donate-payment-methods__logos">
-                            <div class="pmethod pmethod--mtn">
-                                <i class="fa fa-mobile-screen"></i> MTN Money
+                    {{-- Payment method selector --}}
+                    <div class="donate-field-group">
+                        <label class="donate-label"><i class="fa fa-lock" style="color:var(--color-forest);margin-right:.3rem;"></i> How would you like to pay? <span class="req">*</span></label>
+                        <input type="hidden" name="payment_method" id="paymentMethodInput" value="{{ old('payment_method') }}">
+                        <input type="hidden" name="mobile_network" id="mobileNetworkInput" value="{{ old('mobile_network') }}">
+
+                        <div class="pay-method-grid">
+                            {{-- Mobile Money --}}
+                            <div class="pay-method-tile {{ old('payment_method') === 'mobile_money' ? 'active' : '' }}" id="tileMobile" data-method="mobile_money">
+                                <div class="pay-method-tile__icon"><i class="fa fa-mobile-screen-button"></i></div>
+                                <div class="pay-method-tile__label">Mobile Money</div>
+                                <div class="pay-method-tile__sub">MTN · Airtel · Zamtel</div>
+                                <i class="fa fa-chevron-down pay-method-tile__chevron"></i>
                             </div>
-                            <div class="pmethod pmethod--airtel">
-                                <i class="fa fa-mobile-screen"></i> Airtel Money
+
+                            {{-- Card --}}
+                            <div class="pay-method-tile {{ old('payment_method') === 'card' ? 'active' : '' }}" id="tileCard" data-method="card">
+                                <div class="pay-method-tile__icon"><i class="fa fa-credit-card"></i></div>
+                                <div class="pay-method-tile__label">Card</div>
+                                <div class="pay-method-tile__sub">Visa · Mastercard</div>
                             </div>
-                            <div class="pmethod pmethod--zamtel">
-                                <i class="fa fa-mobile-screen"></i> Zamtel
+                        </div>
+
+                        {{-- Mobile network dropdown --}}
+                        <div class="mobile-network-dropdown" id="mobileNetworkDropdown" style="{{ old('payment_method') === 'mobile_money' ? '' : 'display:none;' }}">
+                            <div class="mobile-network-option {{ old('mobile_network') === 'mtn' ? 'selected' : '' }}" data-network="mtn">
+                                <span class="network-badge network-badge--mtn">MTN</span>
+                                <span>MTN Mobile Money</span>
                             </div>
-                            <div class="pmethod pmethod--card">
-                                <i class="fa fa-credit-card"></i> Visa / MC
+                            <div class="mobile-network-option {{ old('mobile_network') === 'airtel' ? 'selected' : '' }}" data-network="airtel">
+                                <span class="network-badge network-badge--airtel">Airtel</span>
+                                <span>Airtel Money</span>
+                            </div>
+                            <div class="mobile-network-option {{ old('mobile_network') === 'zamtel' ? 'selected' : '' }}" data-network="zamtel">
+                                <span class="network-badge network-badge--zamtel">Zamtel</span>
+                                <span>Zamtel Kwacha</span>
                             </div>
                         </div>
                     </div>
@@ -479,42 +500,110 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
 }
 .donate-input--amount:focus { outline: none; border: none; }
 
-/* ── Payment methods ────────────────────────────────────────────────────────── */
-.donate-payment-methods {
+/* ── Payment method tiles ───────────────────────────────────────────────────── */
+.pay-method-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+    margin-bottom: 0;
+}
+.pay-method-tile {
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fff;
+    position: relative;
+    user-select: none;
+}
+.pay-method-tile:hover {
+    border-color: var(--color-forest);
     background: #f8fdf9;
-    border: 1px solid #d4edda;
-    border-radius: var(--radius-sm);
-    padding: 0.9rem 1rem;
-    margin-bottom: 1.5rem;
 }
-.donate-payment-methods__label {
-    font-size: 0.78rem;
-    font-weight: 600;
+.pay-method-tile.active {
+    border-color: var(--color-forest);
+    background: #f0f9f4;
+    box-shadow: 0 0 0 3px rgba(27,67,50,0.1);
+}
+.pay-method-tile__icon {
+    font-size: 2rem;
     color: var(--color-forest);
-    margin-bottom: 0.7rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+    line-height: 1;
 }
-.donate-payment-methods__logos {
-    display: flex;
-    gap: 0.6rem;
-    flex-wrap: wrap;
-}
-.pmethod {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-size: 0.75rem;
+.pay-method-tile.active .pay-method-tile__icon { color: var(--color-forest); }
+.pay-method-tile__label {
+    font-size: 1rem;
     font-weight: 700;
-    padding: 0.3rem 0.65rem;
-    border-radius: 4px;
-    letter-spacing: 0.01em;
+    color: var(--color-slate);
+    margin-bottom: 0.2rem;
 }
-.pmethod--mtn    { background: #FFCC00; color: #1a1a1a; }
-.pmethod--airtel { background: #E10000; color: #fff; }
-.pmethod--zamtel { background: #1B4332; color: #fff; }
-.pmethod--card   { background: #1A1F71; color: #fff; }
+.pay-method-tile__sub {
+    font-size: 0.75rem;
+    color: var(--color-slate-mid);
+}
+.pay-method-tile__chevron {
+    position: absolute;
+    bottom: 0.55rem;
+    right: 0.7rem;
+    font-size: 0.7rem;
+    color: var(--color-slate-mid);
+    transition: transform 0.2s;
+}
+.pay-method-tile.active .pay-method-tile__chevron { transform: rotate(180deg); }
+
+/* ── Mobile network dropdown ────────────────────────────────────────────────── */
+.mobile-network-dropdown {
+    margin-top: 0.6rem;
+    border: 2px solid var(--color-forest);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    animation: slideDown 0.18s ease-out;
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.mobile-network-option {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    cursor: pointer;
+    background: #fff;
+    transition: background 0.15s;
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: var(--color-slate);
+    border-bottom: 1px solid var(--color-border);
+}
+.mobile-network-option:last-child { border-bottom: none; }
+.mobile-network-option:hover  { background: #f8fdf9; }
+.mobile-network-option.selected { background: #f0f9f4; font-weight: 700; }
+.mobile-network-option.selected::after {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    margin-left: auto;
+    color: var(--color-forest);
+    font-size: 0.85rem;
+}
+.network-badge {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+    min-width: 56px;
+    text-align: center;
+}
+.network-badge--mtn    { background: #FFCC00; color: #1a1a1a; }
+.network-badge--airtel { background: #E10000; color: #fff; }
+.network-badge--zamtel { background: #1B4332; color: #fff; }
 
 /* ── Submit ─────────────────────────────────────────────────────────────────── */
 .donate-submit-btn {
@@ -700,7 +789,45 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
     presetBtns.forEach(b => b.addEventListener('click', updateButtonText));
     customInput.addEventListener('input', updateButtonText);
 
-    // Disable submit on form send to prevent double-click
+    // ── Payment method tiles ─────────────────────────────────────────────────
+    const tileMobile   = document.getElementById('tileMobile');
+    const tileCard     = document.getElementById('tileCard');
+    const networkDrop  = document.getElementById('mobileNetworkDropdown');
+    const pmInput      = document.getElementById('paymentMethodInput');
+    const netInput     = document.getElementById('mobileNetworkInput');
+
+    tileMobile.addEventListener('click', function () {
+        const isActive = this.classList.contains('active');
+        // Toggle: clicking again collapses
+        if (isActive) {
+            this.classList.remove('active');
+            networkDrop.style.display = 'none';
+            pmInput.value = '';
+        } else {
+            tileMobile.classList.add('active');
+            tileCard.classList.remove('active');
+            networkDrop.style.display = 'block';
+            pmInput.value = 'mobile_money';
+        }
+    });
+
+    tileCard.addEventListener('click', function () {
+        tileCard.classList.add('active');
+        tileMobile.classList.remove('active');
+        networkDrop.style.display = 'none';
+        pmInput.value = 'card';
+        netInput.value = '';
+    });
+
+    document.querySelectorAll('.mobile-network-option').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+            document.querySelectorAll('.mobile-network-option').forEach(o => o.classList.remove('selected'));
+            this.classList.add('selected');
+            netInput.value = this.dataset.network;
+        });
+    });
+
+    // ── Disable submit on send ────────────────────────────────────────────────
     document.getElementById('donateForm').addEventListener('submit', function () {
         submitBtn.disabled = true;
         submitBtnText.textContent = 'Redirecting to payment…';

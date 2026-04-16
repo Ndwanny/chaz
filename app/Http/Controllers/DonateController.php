@@ -31,13 +31,15 @@ class DonateController extends Controller
     public function initiate(Request $request)
     {
         $validated = $request->validate([
-            'amount'       => ['required', 'numeric', 'min:10'],
-            'fund'         => ['required', 'string', 'max:100'],
-            'first_name'   => ['required', 'string', 'max:80'],
-            'last_name'    => ['required', 'string', 'max:80'],
-            'email'        => ['required', 'email', 'max:120'],
-            'phone'        => ['nullable', 'string', 'max:20'],
-            'message'      => ['nullable', 'string', 'max:500'],
+            'amount'          => ['required', 'numeric', 'min:10'],
+            'fund'            => ['required', 'string', 'max:100'],
+            'payment_method'  => ['required', 'in:mobile_money,card'],
+            'mobile_network'  => ['required_if:payment_method,mobile_money', 'nullable', 'in:mtn,airtel,zamtel'],
+            'first_name'      => ['required', 'string', 'max:80'],
+            'last_name'       => ['required', 'string', 'max:80'],
+            'email'           => ['required', 'email', 'max:120'],
+            'phone'           => ['nullable', 'string', 'max:20'],
+            'message'         => ['nullable', 'string', 'max:500'],
         ]);
 
         $reference = 'CHAZ-DON-' . strtoupper(Str::random(10));
@@ -72,10 +74,14 @@ class DonateController extends Controller
             'return_url'     => route('donate.success'),
             'cancel_url'     => route('donate.cancel'),
             'callback_url'   => route('donate.callback'),
+            'payment_method' => $validated['payment_method'],
+            'mobile_network' => $validated['mobile_network'] ?? null,
             'metadata'       => [
-                'fund'       => $validated['fund'],
-                'message'    => $validated['message'] ?? '',
-                'donor'      => $validated['first_name'] . ' ' . $validated['last_name'],
+                'fund'           => $validated['fund'],
+                'message'        => $validated['message'] ?? '',
+                'donor'          => $validated['first_name'] . ' ' . $validated['last_name'],
+                'payment_method' => $validated['payment_method'],
+                'mobile_network' => $validated['mobile_network'] ?? null,
             ],
         ];
 
