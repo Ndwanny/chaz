@@ -9,6 +9,12 @@ class ContentSeeder extends Seeder
 {
     public function run(): void
     {
+        // Skip if already seeded — prevents duplicate key errors on redeploy
+        if (DB::table('news')->exists()) {
+            $this->command->info('ContentSeeder: data already present, skipping.');
+            return;
+        }
+
         $now = now();
 
         // ── NEWS ─────────────────────────────────────────────────────────────

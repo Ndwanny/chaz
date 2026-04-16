@@ -9,6 +9,10 @@ class RoleSeeder extends Seeder
 {
     public function run(): void
     {
+        if (DB::table('roles')->exists()) {
+            return;
+        }
+
         $roles = [
             ['slug' => 'super_admin',           'name' => 'Super Administrator',     'level' => 10, 'description' => 'Full unrestricted access to all modules and settings'],
             ['slug' => 'admin',                 'name' => 'Administrator',            'level' => 9,  'description' => 'Full access except system configuration'],

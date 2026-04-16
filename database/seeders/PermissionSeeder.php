@@ -9,6 +9,10 @@ class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
+        if (DB::table('permissions')->exists()) {
+            return;
+        }
+
         $permissions = [
             // Dashboard
             ['group' => 'dashboard',     'name' => 'View Dashboard',              'slug' => 'view_dashboard'],

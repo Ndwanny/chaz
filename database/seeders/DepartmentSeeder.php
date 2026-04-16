@@ -9,6 +9,10 @@ class DepartmentSeeder extends Seeder
 {
     public function run(): void
     {
+        if (DB::table('departments')->exists()) {
+            return;
+        }
+
         $departments = [
             // Core departments
             ['code' => 'EXEC',   'name' => 'Executive / Secretariat',        'type' => 'executive',    'province' => null],
