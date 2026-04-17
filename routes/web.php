@@ -66,11 +66,14 @@ Route::get('/employee-portal', [EmployeePortalController::class, 'index'])->name
 Route::post('/contact', [ContactController::class, 'send'])->name('contact.send');
 
 // Donate
-Route::get('/donate',           [DonateController::class, 'index'])->name('donate');
-Route::post('/donate/initiate', [DonateController::class, 'initiate'])->name('donate.initiate');
-Route::post('/donate/callback', [DonateController::class, 'callback'])->name('donate.callback')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
-Route::get('/donate/success',   [DonateController::class, 'success'])->name('donate.success');
-Route::get('/donate/cancel',    [DonateController::class, 'cancel'])->name('donate.cancel');
+Route::get('/donate',                      [DonateController::class, 'index'])->name('donate');
+Route::post('/donate/initiate',            [DonateController::class, 'initiate'])->name('donate.initiate');
+Route::get('/donate/pending',              [DonateController::class, 'pending'])->name('donate.pending');
+Route::get('/donate/poll/{reference}',     [DonateController::class, 'poll'])->name('donate.poll');
+Route::get('/donate/success',              [DonateController::class, 'success'])->name('donate.success');
+Route::get('/donate/cancel',               [DonateController::class, 'cancel'])->name('donate.cancel');
+Route::post('/donate/callback',            [DonateController::class, 'callback'])->name('donate.callback')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 // ── Employee Portal Routes ───────────────────────────────────────────────────
 use App\Http\Controllers\Portal\PortalAuthController;

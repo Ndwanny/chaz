@@ -4,19 +4,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Broadpay / Lenco Payment Gateway
+    | Lenco by Broadpay — Payment Gateway
     |--------------------------------------------------------------------------
-    | Zambia's Broadpay (Lenco) payment gateway supports MTN Money,
+    | Zambia's Lenco by Broadpay payment gateway supports MTN Money,
     | Airtel Money, Zamtel Kwacha, Visa, and Mastercard.
     |
-    | Sandbox:  https://sandbox.broadpay.co.zm/api/v1
-    | Live:     https://api.broadpay.co.zm/api/v1
+    | API Docs: https://lenco-api.readme.io/v2.0/reference/introduction
+    | Base URL: https://api.lenco.co/access/v2
     |--------------------------------------------------------------------------
     */
 
-    'api_url'        => env('BROADPAY_API_URL', 'https://api.broadpay.co.zm/api/v1'),
-    'merchant_id'    => env('BROADPAY_MERCHANT_ID', ''),
-    'api_key'        => env('BROADPAY_API_KEY', ''),
-    'webhook_secret' => env('BROADPAY_WEBHOOK_SECRET', ''),
+    'api_url'    => env('LENCO_API_URL', 'https://api.lenco.co/access/v2'),
+    'api_key'    => env('LENCO_API_KEY', ''),   // Bearer token from Lenco dashboard
+    'currency'   => env('LENCO_CURRENCY', 'ZMW'),
+    'country'    => env('LENCO_COUNTRY', 'zm'),
 
 ];

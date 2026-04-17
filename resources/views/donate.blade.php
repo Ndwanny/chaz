@@ -166,11 +166,52 @@
                                 value="{{ old('email') }}" placeholder="jane@example.com" required>
                             @error('email')<div class="donate-error">{{ $message }}</div>@enderror
                         </div>
-                        <div class="donate-field-group">
-                            <label class="donate-label" for="phone">Mobile Number <span class="donate-optional">(optional)</span></label>
+                        <div class="donate-field-group" id="phoneFieldWrap">
+                            <label class="donate-label" for="phone">
+                                Mobile Number
+                                <span class="req" id="phoneReq" style="{{ old('payment_method') === 'mobile_money' ? '' : 'display:none;' }}">*</span>
+                                <span class="donate-optional" id="phoneOpt" style="{{ old('payment_method') === 'mobile_money' ? 'display:none;' : '' }}">(optional)</span>
+                            </label>
                             <input type="tel" name="phone" id="phone" class="donate-input @error('phone') is-invalid @enderror"
                                 value="{{ old('phone') }}" placeholder="+260 97X XXXXXX">
+                            <div style="font-size:0.73rem;color:var(--color-slate-mid);margin-top:0.25rem;" id="phoneHint" style="display:none;">
+                                Use the number registered with your mobile money account.
+                            </div>
                             @error('phone')<div class="donate-error">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+
+                    {{-- Card fields (shown only when Card is selected) --}}
+                    <div id="cardFields" style="{{ old('payment_method') === 'card' ? '' : 'display:none;' }}">
+                        <div class="donate-field-group">
+                            <label class="donate-label" for="card_number">Card Number <span class="req">*</span></label>
+                            <input type="text" name="card_number" id="card_number"
+                                class="donate-input donate-input--card @error('card_number') is-invalid @enderror"
+                                value="{{ old('card_number') }}" placeholder="1234 5678 9012 3456"
+                                maxlength="19" autocomplete="cc-number">
+                            @error('card_number')<div class="donate-error">{{ $message }}</div>@enderror
+                        </div>
+                        <div class="donate-field-row">
+                            <div class="donate-field-group">
+                                <label class="donate-label" for="card_expiry">Expiry Date <span class="req">*</span></label>
+                                <input type="text" name="card_expiry" id="card_expiry"
+                                    class="donate-input @error('card_expiry') is-invalid @enderror"
+                                    value="{{ old('card_expiry') }}" placeholder="MM/YY"
+                                    maxlength="5" autocomplete="cc-exp">
+                                @error('card_expiry')<div class="donate-error">{{ $message }}</div>@enderror
+                            </div>
+                            <div class="donate-field-group">
+                                <label class="donate-label" for="card_cvv">CVV <span class="req">*</span></label>
+                                <input type="password" name="card_cvv" id="card_cvv"
+                                    class="donate-input @error('card_cvv') is-invalid @enderror"
+                                    value="" placeholder="•••"
+                                    maxlength="4" autocomplete="cc-csc">
+                                @error('card_cvv')<div class="donate-error">{{ $message }}</div>@enderror
+                            </div>
+                        </div>
+                        <div class="donate-card-security-note">
+                            <i class="fa fa-lock"></i>
+                            Your card details are transmitted directly to Lenco's secure servers over an encrypted HTTPS connection. CHAZ never stores card information.
                         </div>
                     </div>
 
@@ -605,6 +646,23 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
 .network-badge--airtel { background: #E10000; color: #fff; }
 .network-badge--zamtel { background: #1B4332; color: #fff; }
 
+/* ── Card fields ────────────────────────────────────────────────────────────── */
+.donate-input--card { letter-spacing: 0.12em; font-size: 1rem; font-weight: 600; }
+.donate-card-security-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    background: #f8fdf9;
+    border: 1px solid #d4edda;
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.78rem;
+    color: var(--color-slate-mid);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+.donate-card-security-note i { color: var(--color-forest); margin-top: 2px; flex-shrink: 0; }
+
 /* ── Submit ─────────────────────────────────────────────────────────────────── */
 .donate-submit-btn {
     width: 100%;
@@ -796,28 +854,68 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
     const pmInput      = document.getElementById('paymentMethodInput');
     const netInput     = document.getElementById('mobileNetworkInput');
 
-    tileMobile.addEventListener('click', function () {
-        const isActive = this.classList.contains('active');
-        // Toggle: clicking again collapses
-        if (isActive) {
-            this.classList.remove('active');
-            networkDrop.style.display = 'none';
-            pmInput.value = '';
-        } else {
-            tileMobile.classList.add('active');
-            tileCard.classList.remove('active');
-            networkDrop.style.display = 'block';
-            pmInput.value = 'mobile_money';
-        }
-    });
+    const cardFields  = document.getElementById('cardFields');
+    const phoneReq    = document.getElementById('phoneReq');
+    const phoneOpt    = document.getElementById('phoneOpt');
+    const phoneHint   = document.getElementById('phoneHint');
 
-    tileCard.addEventListener('click', function () {
+    function showMobileMode() {
+        tileMobile.classList.add('active');
+        tileCard.classList.remove('active');
+        networkDrop.style.display = 'block';
+        cardFields.style.display  = 'none';
+        pmInput.value             = 'mobile_money';
+        phoneReq.style.display    = 'inline';
+        phoneOpt.style.display    = 'none';
+        phoneHint.style.display   = 'block';
+    }
+
+    function showCardMode() {
         tileCard.classList.add('active');
         tileMobile.classList.remove('active');
         networkDrop.style.display = 'none';
-        pmInput.value = 'card';
-        netInput.value = '';
+        cardFields.style.display  = 'block';
+        pmInput.value             = 'card';
+        netInput.value            = '';
+        phoneReq.style.display    = 'none';
+        phoneOpt.style.display    = 'inline';
+        phoneHint.style.display   = 'none';
+    }
+
+    tileMobile.addEventListener('click', function () {
+        if (this.classList.contains('active')) {
+            this.classList.remove('active');
+            networkDrop.style.display = 'none';
+            cardFields.style.display  = 'none';
+            pmInput.value             = '';
+            phoneReq.style.display    = 'none';
+            phoneOpt.style.display    = 'inline';
+            phoneHint.style.display   = 'none';
+        } else {
+            showMobileMode();
+        }
     });
+
+    tileCard.addEventListener('click', showCardMode);
+
+    // Card number auto-spacing (groups of 4)
+    const cardNumberInput = document.getElementById('card_number');
+    if (cardNumberInput) {
+        cardNumberInput.addEventListener('input', function () {
+            let v = this.value.replace(/\D/g, '').substring(0, 16);
+            this.value = v.replace(/(.{4})/g, '$1 ').trim();
+        });
+    }
+
+    // Card expiry auto-slash
+    const cardExpiryInput = document.getElementById('card_expiry');
+    if (cardExpiryInput) {
+        cardExpiryInput.addEventListener('input', function () {
+            let v = this.value.replace(/\D/g, '').substring(0, 4);
+            if (v.length >= 3) v = v.substring(0, 2) + '/' + v.substring(2);
+            this.value = v;
+        });
+    }
 
     document.querySelectorAll('.mobile-network-option').forEach(function (opt) {
         opt.addEventListener('click', function () {
