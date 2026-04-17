@@ -102,27 +102,17 @@
                         </div>
                     </div>
 
-                    {{-- Amount presets --}}
+                    {{-- Amount --}}
                     <div class="donate-field-group">
-                        <label class="donate-label">Donation Amount (ZMW) <span class="req">*</span></label>
-                        <div class="donate-amount-grid">
-                            @foreach ([50, 100, 250, 500, 1000, 2500] as $preset)
-                            <button type="button" class="donate-amount-btn {{ old('amount') == $preset ? 'active' : '' }}" data-amount="{{ $preset }}">
-                                ZMW {{ number_format($preset) }}
-                            </button>
-                            @endforeach
-                            <button type="button" class="donate-amount-btn donate-amount-btn--custom {{ !in_array(old('amount'), [50,100,250,500,1000,2500]) && old('amount') ? 'active' : '' }}" data-custom>
-                                Custom
-                            </button>
-                        </div>
-                        <div class="donate-custom-wrap" id="customAmountWrap" style="{{ (!in_array(old('amount'), [50,100,250,500,1000,2500]) && old('amount')) ? '' : 'display:none;' }}">
+                        <label class="donate-label" for="amount">Donation Amount (ZMW) <span class="req">*</span></label>
+                        <div class="donate-custom-wrap">
                             <span class="donate-currency-prefix">ZMW</span>
-                            <input type="number" name="amount" id="amountInput" class="donate-input donate-input--amount @error('amount') is-invalid @enderror"
+                            <input type="number" name="amount" id="amount"
+                                class="donate-input donate-input--amount @error('amount') is-invalid @enderror"
                                 placeholder="Enter amount (min. ZMW 10)"
                                 value="{{ old('amount') }}"
                                 min="10" step="0.01">
                         </div>
-                        <input type="hidden" name="amount" id="amountHidden" value="{{ old('amount') }}">
                         @error('amount')<div class="donate-error">{{ $message }}</div>@enderror
                     </div>
 
@@ -168,14 +158,15 @@
                         </div>
                         <div class="donate-field-group" id="phoneFieldWrap">
                             <label class="donate-label" for="phone">
-                                Mobile Number
+                                <span id="phoneLabel">Mobile Number</span>
                                 <span class="req" id="phoneReq" style="{{ old('payment_method') === 'mobile_money' ? '' : 'display:none;' }}">*</span>
                                 <span class="donate-optional" id="phoneOpt" style="{{ old('payment_method') === 'mobile_money' ? 'display:none;' : '' }}">(optional)</span>
                             </label>
                             <input type="tel" name="phone" id="phone" class="donate-input @error('phone') is-invalid @enderror"
-                                value="{{ old('phone') }}" placeholder="+260 97X XXXXXX">
-                            <div style="font-size:0.73rem;color:var(--color-slate-mid);margin-top:0.25rem;" id="phoneHint" style="display:none;">
-                                Use the number registered with your mobile money account.
+                                value="{{ old('phone') }}"
+                                placeholder="{{ old('payment_method') === 'mobile_money' ? 'Enter mobile money number e.g. 0971234567' : '+260 97X XXXXXX' }}">
+                            <div style="font-size:0.73rem;color:var(--color-slate-mid);margin-top:0.25rem;" id="phoneHint" @if(old('payment_method') !== 'mobile_money') style="display:none;" @endif>
+                                Enter the number registered with your {{ old('mobile_network', 'mobile money') }} account.
                             </div>
                             @error('phone')<div class="donate-error">{{ $message }}</div>@enderror
                         </div>
@@ -801,42 +792,13 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
 @push('scripts')
 <script>
 (function () {
-    const amountHidden   = document.getElementById('amountHidden');
-    const customWrap     = document.getElementById('customAmountWrap');
-    const customInput    = document.getElementById('amountInput');
-    const submitBtn      = document.getElementById('submitBtn');
-    const submitBtnText  = document.getElementById('submitBtnText');
-    const presetBtns     = document.querySelectorAll('.donate-amount-btn:not([data-custom])');
-    const customBtn      = document.querySelector('.donate-amount-btn[data-custom]');
+    const amountInput   = document.getElementById('amount');
+    const submitBtn     = document.getElementById('submitBtn');
+    const submitBtnText = document.getElementById('submitBtnText');
 
-    // Preset amount selection
-    presetBtns.forEach(btn => {
-        btn.addEventListener('click', function () {
-            presetBtns.forEach(b => b.classList.remove('active'));
-            customBtn.classList.remove('active');
-            this.classList.add('active');
-            amountHidden.value = this.dataset.amount;
-            customWrap.style.display = 'none';
-            customInput.removeAttribute('name');
-            amountHidden.setAttribute('name', 'amount');
-        });
-    });
-
-    // Custom amount
-    customBtn.addEventListener('click', function () {
-        presetBtns.forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        customWrap.style.display = 'flex';
-        customInput.setAttribute('name', 'amount');
-        amountHidden.removeAttribute('name');
-        customInput.focus();
-    });
-
-    // Update button text with amount
+    // Update submit button text with entered amount
     function updateButtonText() {
-        const amount = amountHidden.name === 'amount'
-            ? parseFloat(amountHidden.value)
-            : parseFloat(customInput.value);
+        const amount = parseFloat(amountInput.value);
         if (amount >= 10) {
             submitBtnText.textContent = 'Donate ZMW ' + amount.toLocaleString('en-ZM', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + ' Now';
         } else {
@@ -844,20 +806,19 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
         }
     }
 
-    presetBtns.forEach(b => b.addEventListener('click', updateButtonText));
-    customInput.addEventListener('input', updateButtonText);
+    amountInput.addEventListener('input', updateButtonText);
 
     // ── Payment method tiles ─────────────────────────────────────────────────
-    const tileMobile   = document.getElementById('tileMobile');
-    const tileCard     = document.getElementById('tileCard');
-    const networkDrop  = document.getElementById('mobileNetworkDropdown');
-    const pmInput      = document.getElementById('paymentMethodInput');
-    const netInput     = document.getElementById('mobileNetworkInput');
-
+    const tileMobile  = document.getElementById('tileMobile');
+    const tileCard    = document.getElementById('tileCard');
+    const networkDrop = document.getElementById('mobileNetworkDropdown');
+    const pmInput     = document.getElementById('paymentMethodInput');
+    const netInput    = document.getElementById('mobileNetworkInput');
     const cardFields  = document.getElementById('cardFields');
     const phoneReq    = document.getElementById('phoneReq');
     const phoneOpt    = document.getElementById('phoneOpt');
     const phoneHint   = document.getElementById('phoneHint');
+    const phoneEl     = document.getElementById('phone');
 
     function showMobileMode() {
         tileMobile.classList.add('active');
@@ -868,6 +829,7 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
         phoneReq.style.display    = 'inline';
         phoneOpt.style.display    = 'none';
         phoneHint.style.display   = 'block';
+        phoneEl.placeholder       = 'Enter mobile money number e.g. 0971234567';
     }
 
     function showCardMode() {
@@ -880,6 +842,7 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
         phoneReq.style.display    = 'none';
         phoneOpt.style.display    = 'inline';
         phoneHint.style.display   = 'none';
+        phoneEl.placeholder       = '+260 97X XXXXXX';
     }
 
     tileMobile.addEventListener('click', function () {
@@ -891,6 +854,7 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
             phoneReq.style.display    = 'none';
             phoneOpt.style.display    = 'inline';
             phoneHint.style.display   = 'none';
+            phoneEl.placeholder       = '+260 97X XXXXXX';
         } else {
             showMobileMode();
         }
@@ -931,7 +895,7 @@ textarea.donate-input { resize: vertical; min-height: 80px; }
         submitBtnText.textContent = 'Redirecting to payment…';
     });
 
-    // Initialise button text if old value present
+    // Initialise button text if old value is pre-filled (e.g. validation error repopulation)
     updateButtonText();
 })();
 </script>
