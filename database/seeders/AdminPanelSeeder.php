@@ -4,11 +4,25 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class AdminPanelSeeder extends Seeder
 {
     public function run(): void
     {
+        // 0. Ensure the superadmin account exists
+        if (!DB::table('admins')->where('email', 'admin@chaz.org.zm')->exists()) {
+            DB::table('admins')->insert([
+                'name'       => 'CHAZ Administrator',
+                'email'      => 'admin@chaz.org.zm',
+                'password'   => Hash::make('Chaz@2024!'),
+                'role'       => 'superadmin',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $this->command->info('✓ Superadmin account created');
+        }
+
         // 1. Permissions first (no dependencies)
         $this->call(PermissionSeeder::class);
         $this->command->info('✓ Permissions seeded');
