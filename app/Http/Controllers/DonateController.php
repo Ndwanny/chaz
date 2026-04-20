@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Donation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -49,8 +50,25 @@ class DonateController extends Controller
         $reference = 'CHAZ-' . strtoupper(Str::random(12));
         $amount    = (float) $validated['amount'];
 
+        // Create the donation record immediately (status = pending)
+        $donation = Donation::create([
+            'reference'      => $reference,
+            'first_name'     => $validated['first_name'],
+            'last_name'      => $validated['last_name'],
+            'email'          => $validated['email'],
+            'phone'          => $validated['phone'] ?? null,
+            'message'        => $validated['message'] ?? null,
+            'amount'         => $amount,
+            'currency'       => $this->currency,
+            'fund'           => $validated['fund'],
+            'payment_method' => $validated['payment_method'],
+            'mobile_network' => $validated['mobile_network'] ?? null,
+            'status'         => 'pending',
+        ]);
+
         // ── Dev bypass: no credentials configured ─────────────────────────────
         if (empty($this->apiKey)) {
+            $donation->update(['status' => 'successful', 'paid_at' => now()]);
             session([
                 'donation_reference' => $reference,
                 'donation_amount'    => number_format($amount, 2),
@@ -61,14 +79,14 @@ class DonateController extends Controller
         }
 
         if ($validated['payment_method'] === 'mobile_money') {
-            return $this->initiateMobileMoney($validated, $reference, $amount);
+            return $this->initiateMobileMoney($validated, $donation, $amount);
         }
 
-        return $this->initiateCard($validated, $reference, $amount);
+        return $this->initiateCard($validated, $donation, $amount);
     }
 
     // ── Mobile Money ─────────────────────────────────────────────────────────
-    private function initiateMobileMoney(array $data, string $reference, float $amount)
+    private function initiateMobileMoney(array $data, Donation $donation, float $amount)
     {
         // Normalise phone to MSISDN format (no + prefix, e.g. 260971234567)
         $phone = preg_replace('/\D/', '', $data['phone']);
@@ -78,11 +96,11 @@ class DonateController extends Controller
 
         $payload = [
             'amount'      => $amount,
-            'reference'   => $reference,
+            'reference'   => $donation->reference,
             'phone'       => $phone,
-            'operator'    => $data['mobile_network'],   // mtn | airtel | zamtel
-            'country'     => $this->country,            // zm
-            'currency'    => $this->currency,           // ZMW
+            'operator'    => $data['mobile_network'],
+            'country'     => $this->country,
+            'currency'    => $this->currency,
             'bearer'      => 'merchant',
             'callbackUrl' => route('donate.callback'),
         ];
@@ -101,11 +119,17 @@ class DonateController extends Controller
 
             if ($response->successful() && ($body['status'] ?? false)) {
                 $collectionId = $body['data']['id'] ?? null;
-                $lencoRef     = $body['data']['lencoReference'] ?? $reference;
+                $lencoRef     = $body['data']['lencoReference'] ?? $donation->reference;
                 $pmStatus     = $body['data']['status'] ?? 'pending';
 
+                $donation->update([
+                    'lenco_reference' => $lencoRef,
+                    'collection_id'   => $collectionId,
+                    'phone'           => $phone,
+                ]);
+
                 session([
-                    'donation_reference'    => $reference,
+                    'donation_reference'    => $donation->reference,
                     'donation_lenco_ref'    => $lencoRef,
                     'donation_collection_id'=> $collectionId,
                     'donation_amount'       => number_format($amount, 2),
@@ -114,22 +138,23 @@ class DonateController extends Controller
                     'donation_operator'     => $data['mobile_network'],
                 ]);
 
-                // pay-offline / pending = customer must approve USSD prompt
                 if (in_array($pmStatus, ['pending', 'pay-offline'])) {
                     return redirect()->route('donate.pending');
                 }
 
-                // Already successful (rare, but handle it)
                 if ($pmStatus === 'successful') {
+                    $donation->update(['status' => 'successful', 'paid_at' => now()]);
                     return redirect()->route('donate.success');
                 }
             }
 
             $errorMsg = $body['message'] ?? 'Mobile money payment could not be initiated.';
+            $donation->update(['status' => 'failed', 'reason_for_failure' => $errorMsg]);
             Log::error('Lenco mobile-money failed', ['payload' => $payload, 'response' => $body]);
 
         } catch (\Exception $e) {
             $errorMsg = 'Payment gateway error. Please try again.';
+            $donation->update(['status' => 'failed', 'reason_for_failure' => $e->getMessage()]);
             Log::error('Lenco mobile-money exception', ['message' => $e->getMessage()]);
         }
 
@@ -137,14 +162,14 @@ class DonateController extends Controller
     }
 
     // ── Card ─────────────────────────────────────────────────────────────────
-    private function initiateCard(array $data, string $reference, float $amount)
+    private function initiateCard(array $data, Donation $donation, float $amount)
     {
         [$expMonth, $expYear] = explode('/', $data['card_expiry'] . '/');
         $expYear = strlen($expYear) === 2 ? '20' . $expYear : $expYear;
 
         $payload = [
             'amount'      => $amount,
-            'reference'   => $reference,
+            'reference'   => $donation->reference,
             'currency'    => $this->currency,
             'callbackUrl' => route('donate.callback'),
             'cardNumber'  => preg_replace('/\s/', '', $data['card_number']),
@@ -166,39 +191,47 @@ class DonateController extends Controller
             Log::info('Lenco card initiate', ['status' => $response->status(), 'body' => $body]);
 
             if ($response->successful() && ($body['status'] ?? false)) {
-                $pmStatus      = $body['data']['status'] ?? '';
-                $authUrl       = $body['data']['authorizationUrl'] ?? null;
-                $collectionId  = $body['data']['id'] ?? null;
+                $pmStatus     = $body['data']['status'] ?? '';
+                $authUrl      = $body['data']['authorizationUrl'] ?? null;
+                $collectionId = $body['data']['id'] ?? null;
+                $lencoRef     = $body['data']['lencoReference'] ?? $donation->reference;
+
+                $donation->update([
+                    'lenco_reference' => $lencoRef,
+                    'collection_id'   => $collectionId,
+                ]);
 
                 session([
-                    'donation_reference'     => $reference,
+                    'donation_reference'     => $donation->reference,
                     'donation_collection_id' => $collectionId,
                     'donation_amount'        => number_format($amount, 2),
                     'donation_fund'          => $data['fund'],
                 ]);
 
-                // 3DS or further auth required — redirect to Lenco's auth page
                 if ($authUrl) {
                     return redirect()->away($authUrl);
                 }
 
                 if ($pmStatus === 'successful') {
+                    $donation->update(['status' => 'successful', 'paid_at' => now()]);
                     return redirect()->route('donate.success');
                 }
             }
 
             $errorMsg = $body['message'] ?? 'Card payment could not be initiated.';
+            $donation->update(['status' => 'failed', 'reason_for_failure' => $errorMsg]);
             Log::error('Lenco card failed', ['payload' => array_merge($payload, ['cardNumber' => '****']), 'response' => $body]);
 
         } catch (\Exception $e) {
             $errorMsg = 'Payment gateway error. Please try again.';
+            $donation->update(['status' => 'failed', 'reason_for_failure' => $e->getMessage()]);
             Log::error('Lenco card exception', ['message' => $e->getMessage()]);
         }
 
         return back()->withErrors(['payment' => $errorMsg ?? 'Payment failed.'])->withInput();
     }
 
-    // ── GET /donate/pending (mobile money waiting page) ───────────────────────
+    // ── GET /donate/pending ───────────────────────────────────────────────────
     public function pending()
     {
         if (!session('donation_reference')) {
@@ -214,11 +247,16 @@ class DonateController extends Controller
         ]);
     }
 
-    // ── GET /donate/poll/{reference}  (AJAX status check) ────────────────────
+    // ── GET /donate/poll/{reference} ──────────────────────────────────────────
     public function poll(string $reference)
     {
         if (empty($this->apiKey)) {
-            return response()->json(['status' => 'successful']); // dev mode
+            // Dev mode: mark successful
+            Donation::where('reference', $reference)->whereNotIn('status', ['successful', 'failed'])->update([
+                'status'  => 'successful',
+                'paid_at' => now(),
+            ]);
+            return response()->json(['status' => 'successful']);
         }
 
         try {
@@ -232,10 +270,23 @@ class DonateController extends Controller
             $body = $response->json();
 
             if ($response->successful() && ($body['status'] ?? false)) {
-                $status = $body['data']['status'] ?? 'pending';
+                $status           = $body['data']['status'] ?? 'pending';
+                $reasonForFailure = $body['data']['reasonForFailure'] ?? null;
+
+                // Persist confirmed status changes
+                if (in_array($status, ['successful', 'failed'])) {
+                    $update = ['status' => $status];
+                    if ($status === 'successful') {
+                        $update['paid_at'] = now();
+                    } elseif ($reasonForFailure) {
+                        $update['reason_for_failure'] = $reasonForFailure;
+                    }
+                    Donation::where('reference', $reference)->update($update);
+                }
+
                 return response()->json([
                     'status'           => $status,
-                    'reasonForFailure' => $body['data']['reasonForFailure'] ?? null,
+                    'reasonForFailure' => $reasonForFailure,
                 ]);
             }
         } catch (\Exception $e) {
@@ -245,16 +296,15 @@ class DonateController extends Controller
         return response()->json(['status' => 'pending']);
     }
 
-    // ── POST /donate/callback  (Lenco webhook) ────────────────────────────────
+    // ── POST /donate/callback (Lenco webhook) ─────────────────────────────────
     public function callback(Request $request)
     {
-        $rawBody  = $request->getContent();
-        $data     = json_decode($rawBody, true) ?? [];
+        $rawBody = $request->getContent();
+        $data    = json_decode($rawBody, true) ?? [];
 
         Log::info('Lenco webhook received', $data);
 
         // Verify HMAC SHA512 signature
-        // Lenco's webhook key = sha256(api_key), then HMAC-SHA512 the raw body
         if (!empty($this->apiKey)) {
             $signature = $request->header('X-Lenco-Signature');
             if ($signature) {
@@ -267,13 +317,24 @@ class DonateController extends Controller
             }
         }
 
-        $event     = $data['event']             ?? '';
         $status    = $data['data']['status']    ?? '';
         $reference = $data['data']['reference'] ?? '';
+        $lencoRef  = $data['data']['lencoReference'] ?? null;
 
-        Log::info("Lenco webhook [{$event}] ref={$reference} status={$status}");
+        if ($reference && in_array($status, ['successful', 'failed'])) {
+            $update = ['status' => $status];
+            if ($lencoRef) {
+                $update['lenco_reference'] = $lencoRef;
+            }
+            if ($status === 'successful') {
+                $update['paid_at'] = now();
+            } elseif ($status === 'failed') {
+                $update['reason_for_failure'] = $data['data']['reasonForFailure'] ?? null;
+            }
+            Donation::where('reference', $reference)->update($update);
+            Log::info("Donation [{$reference}] updated to status={$status} via webhook");
+        }
 
-        // Respond 200 immediately — Lenco retries if no 2xx within timeout
         return response()->json(['status' => 'received']);
     }
 
@@ -295,6 +356,11 @@ class DonateController extends Controller
     // ── GET /donate/cancel ────────────────────────────────────────────────────
     public function cancel()
     {
+        // Mark any session donation as cancelled
+        if ($ref = session('donation_reference')) {
+            Donation::where('reference', $ref)->where('status', 'pending')
+                ->update(['status' => 'cancelled']);
+        }
         return view('donate-cancel');
     }
 }

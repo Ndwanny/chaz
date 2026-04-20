@@ -11,15 +11,17 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Default superadmin
-        DB::table('admins')->insert([
-            'name'       => 'CHAZ Administrator',
-            'email'      => 'admin@chaz.org.zm',
-            'password'   => Hash::make('Chaz@2024!'),
-            'role'       => 'superadmin',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Default superadmin (idempotent)
+        if (!DB::table('admins')->where('email', 'admin@chaz.org.zm')->exists()) {
+            DB::table('admins')->insert([
+                'name'       => 'CHAZ Administrator',
+                'email'      => 'admin@chaz.org.zm',
+                'password'   => Hash::make('Chaz@2024!'),
+                'role'       => 'superadmin',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
 
         // Sample news
         $newsItems = [
